@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BD Meeting Hub | Anchorpoint</title>
-<!-- version: types-v2 -->
+<!-- version: types-v4 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -111,6 +111,7 @@ h2{font-size:17px;margin-bottom:10px}
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .head-row h1{font-size:30px}
 .sub{color:var(--muted);margin:4px 0 0}
+.head-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .pill{font-size:13px;padding:3px 10px;border-radius:20px;background:var(--soft);white-space:nowrap}
 .pill.held{background:rgba(167,197,238,.35)}
 .pill.cancelled{background:rgba(235,105,84,.15);color:var(--sunset)}
@@ -131,7 +132,7 @@ textarea.in{min-height:84px;resize:vertical;line-height:1.5}
 .hint{color:var(--muted);font-size:13px;margin:-4px 0 10px}
 .rows{display:flex;flex-direction:column;gap:8px}
 .r{display:grid;gap:8px;align-items:center}
-.r.att{grid-template-columns:1.2fr 1fr 150px auto}
+.r.att{grid-template-columns:1.2fr 1fr auto}
 .r.ag{grid-template-columns:1fr 90px 160px auto}
 .r.q{grid-template-columns:1fr auto}
 .r.ac{grid-template-columns:auto 1fr 150px 150px auto}
@@ -218,7 +219,7 @@ textarea.notes{min-height:320px}
 <div class="app">
   <aside class="side">
     <div class="side-head">
-      <input class="search" id="search" type="search" placeholder="Search company, title or attendee" aria-label="Search meetings">
+      <input class="search" id="search" type="search" placeholder="Search meeting or attendee" aria-label="Search meetings">
       <div class="filters" role="tablist">
         <button data-act="filter" data-filter="upcoming" class="on">Upcoming</button>
         <button data-act="filter" data-filter="past">Past</button>
@@ -269,8 +270,8 @@ function setSync(text, local) { const s = $("sync"); s.textContent = text; s.cla
 
 function blank(extra) {
   return Object.assign({
-    id: uid(), company: "", leaseEvent: "", title: "", date: todayISO(), time: "10:00", duration: 60,
-    location: "", type: "BD Catch-Up", status: "planned",
+    id: uid(), date: todayISO(), time: "10:00", duration: 60,
+    location: "", type: "", status: "planned",
     attendees: [], objective: "", background: "", questions: [], agenda: [],
     notes: "", outcome: "", decisions: "", actions: [], nextDate: "",
     createdAt: Date.now(), updatedAt: Date.now(), updatedBy: CLIENT
@@ -279,8 +280,10 @@ function blank(extra) {
 function normalize(m) {
   const o = Object.assign(blank(), m);
   ["attendees", "questions", "agenda", "actions"].forEach(k => o[k] = toArr(o[k]));
+  if (!TYPES.includes(o.type)) o.type = "";
   return o;
 }
+const nameOf = m => m.type || "Untitled meeting";
 const current = () => currentId ? meetings[currentId] : null;
 const all = () => Object.values(meetings);
 const openActions = m => m.actions.filter(a => !a.done && (a.text || "").trim());
@@ -355,7 +358,7 @@ function onData(raw) {
 /* ---------- sidebar ---------- */
 function matches(m) {
   if (!query) return true;
-  const hay = [m.company, m.title, m.type, ...m.attendees.map(a => a.name + " " + a.role)].join(" ").toLowerCase();
+  const hay = [m.type, ...m.attendees.map(a => a.name + " " + a.role)].join(" ").toLowerCase();
   return hay.includes(query.toLowerCase());
 }
 function renderList() {
@@ -376,7 +379,7 @@ function renderList() {
     const flag = needsFollowUp(m) ? `<span class="flag warn" title="Needs follow-up"></span>` : m.status === "held" ? `<span class="flag held" title="Held"></span>` : "";
     return `<button class="mtg ${m.id === currentId ? "active" : ""}" data-act="open" data-id="${m.id}">
       <span class="dt"><b>${d ? d.getDate() : "?"}</b><small>${d ? d.toLocaleDateString("en-GB", { month: "short" }) : ""}</small></span>
-      <span class="mt"><strong>${esc(m.company) || "No company yet"}</strong><span>${esc(m.title || m.type)}${m.time ? ", " + esc(m.time) : ""}${m.status === "cancelled" ? " (cancelled)" : ""}</span></span>
+      <span class="mt"><strong>${esc(nameOf(m))}</strong><span>${esc(m.time || "No time set")}${m.status === "cancelled" ? " (cancelled)" : ""}</span></span>
       ${flag}</button>`;
   }).join("");
 }
@@ -399,18 +402,18 @@ function renderOverview() {
   acts.sort((x, y) => (x.a.due || "9999").localeCompare(y.a.due || "9999"));
   const needs = all().filter(needsFollowUp).sort((a, b) => b.date.localeCompare(a.date));
 
-  const weekHtml = week.length ? week.map(m => `<button class="row-link" data-act="open" data-id="${m.id}"><strong>${esc(m.company) || "No company"}${m.title ? `, ${esc(m.title)}` : ""}</strong><span>${fmtDate(m.date, { weekday: "short", day: "numeric", month: "short" })} ${esc(m.time)}</span></button>`).join("")
+  const weekHtml = week.length ? week.map(m => `<button class="row-link" data-act="open" data-id="${m.id}"><strong>${esc(nameOf(m))}</strong><span>${fmtDate(m.date, { weekday: "short", day: "numeric", month: "short" })} ${esc(m.time)}</span></button>`).join("")
     : `<p class="empty">No meetings in the next seven days.</p>`;
   const actHtml = acts.length ? acts.map(({ m, a, i }) => {
     const late = a.due && a.due < t;
     return `<div class="act-row"><input type="checkbox" aria-label="Mark done" data-mid="${m.id}" data-list="actions" data-i="${i}" data-k="done">
-      <div><div>${esc(a.text)}</div><div class="meta"><button class="link" data-act="open" data-id="${m.id}" data-step="follow">${esc(m.company) || "No company"}${m.title ? ", " + esc(m.title) : ""}</button>${a.owner ? `, ${esc(a.owner)}` : ""}${a.due ? `, <span class="${late ? "overdue" : ""}">due ${fmtDate(a.due, { day: "numeric", month: "short" })}</span>` : ""}</div></div></div>`;
+      <div><div>${esc(a.text)}</div><div class="meta"><button class="link" data-act="open" data-id="${m.id}" data-step="follow">${esc(nameOf(m))}</button>${a.owner ? `, ${esc(a.owner)}` : ""}${a.due ? `, <span class="${late ? "overdue" : ""}">due ${fmtDate(a.due, { day: "numeric", month: "short" })}</span>` : ""}</div></div></div>`;
   }).join("") : `<p class="empty">No open actions. Actions captured in meetings appear here.</p>`;
-  const needsHtml = needs.length ? needs.map(m => `<button class="row-link" data-act="open" data-id="${m.id}" data-step="follow"><strong>${esc(m.company) || "No company"}${m.title ? `, ${esc(m.title)}` : ""}</strong><span>${m.status === "planned" ? "Outcome not logged" : "No actions logged"}</span></button>`).join("")
+  const needsHtml = needs.length ? needs.map(m => `<button class="row-link" data-act="open" data-id="${m.id}" data-step="follow"><strong>${esc(nameOf(m))}</strong><span>${m.status === "planned" ? "Outcome not logged" : "No actions logged"}</span></button>`).join("")
     : `<p class="empty">Every past meeting has an outcome and actions.</p>`;
 
   return `<h1 style="font-size:30px">BD meetings</h1>
-    <p class="intro">Prep each client and prospect meeting, run it with a timed agenda and live notes, then log the outcome and actions so every opportunity moves forward.</p>
+    <p class="intro">Prep each BD meeting, run it with a timed agenda and live notes, then log decisions and actions so nothing gets lost afterwards.</p>
     <div class="ov-grid">
       <div class="card"><h2>Next seven days</h2>${weekHtml}</div>
       <div class="card"><h2>Needs follow-up</h2>${needsHtml}</div>
@@ -419,14 +422,14 @@ function renderOverview() {
 }
 
 function subline(m) {
-  return [m.title, fmtDate(m.date), m.time, m.duration ? m.duration + " min" : "", m.type, m.location, m.leaseEvent ? "lease event " + fmtDate(m.leaseEvent, { month: "short", year: "numeric" }) : ""].filter(Boolean).map(esc).join(", ");
+  return [fmtDate(m.date), m.time, m.duration ? m.duration + " min" : "", m.location].filter(Boolean).map(esc).join(", ");
 }
 function renderDetail(m) {
   const tabs = [["prep", "Prep"], ["run", "Run"], ["follow", "Follow up"]];
   return `<button class="link back" data-act="back">Back to overview</button>
     <div class="head-row">
-      <div><h1 id="h-title">${esc(m.company) || "New meeting"}</h1><p class="sub" id="h-sub">${subline(m)}</p></div>
-      <span class="pill ${m.status}" id="h-status">${STATUSES[m.status] || "Planned"}</span>
+      <div><h1 id="h-title">${esc(m.type) || "New meeting"}</h1><p class="sub" id="h-sub">${subline(m)}</p></div>
+      <div class="head-tools"><span class="pill ${m.status}" id="h-status">${STATUSES[m.status] || "Planned"}</span><button class="btn small danger" data-act="delete">Delete meeting</button></div>
     </div>
     <nav class="steps">${tabs.map(([k, l], i) => `<button data-act="step" data-step="${k}" class="${step === k ? "on" : ""}"><b>${i + 1}</b>${l}</button>`).join("")}</nav>
     <div id="banner"></div>
@@ -434,7 +437,7 @@ function renderDetail(m) {
 }
 function updateHeader() {
   const m = current(); if (!m) return;
-  if ($("h-title")) $("h-title").textContent = m.company || "New meeting";
+  if ($("h-title")) $("h-title").textContent = m.type || "New meeting";
   if ($("h-sub")) $("h-sub").innerHTML = subline(m);
   if ($("h-status")) { $("h-status").textContent = STATUSES[m.status]; $("h-status").className = "pill " + m.status; }
 }
@@ -454,28 +457,24 @@ function renderPrep(m) {
   return `
   <section class="block"><h2>Details</h2>
     <div class="fields">
-      <label class="f">Company${input("company", m.company, "text", "e.g. Switalskis Solicitors")}</label>
-      <label class="f">Meeting title${input("title", m.title, "text", "e.g. Weekly pipeline review")}</label>
-      <label class="f">Type<select class="in" data-f="type">${(TYPES.includes(m.type) || !m.type ? TYPES : [m.type, ...TYPES]).map(t => `<option ${t === m.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
+      <label class="f">Meeting<select class="in" data-f="type"><option value="" ${m.type ? "" : "selected"} disabled>Choose a type</option>${TYPES.map(t => `<option ${t === m.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
       <label class="f">Date${input("date", m.date, "date")}</label>
       <label class="f">Start time${input("time", m.time, "time")}</label>
       <label class="f">Length (minutes)${input("duration", m.duration, "number")}</label>
-      <label class="f">Lease event${input("leaseEvent", m.leaseEvent, "date")}</label>
       <label class="f span2">Where${input("location", m.location, "text", "Their office, our office or Teams link")}</label>
     </div>
   </section>
   <section class="block"><h2>Attendees</h2>
     <div class="rows">${m.attendees.map((a, i) => `<div class="r att">${li("attendees", i, "name", a.name, "text", "Name")}${li("attendees", i, "role", a.role, "text", "Role")}
-      <select class="in" data-list="attendees" data-i="${i}" data-k="side" aria-label="Side"><option ${a.side !== "Anchorpoint" ? "selected" : ""}>Client</option><option ${a.side === "Anchorpoint" ? "selected" : ""}>Anchorpoint</option></select>
       ${rm("attendees", i)}</div>`).join("")}</div>
     <button class="btn small adder" data-act="add" data-list="attendees">Add attendee</button>
   </section>
   <section class="block"><h2>Objective</h2>
     <p class="hint">What does a good outcome look like when you walk out?</p>
-    ${area("objective", m.objective, "e.g. Confirm the lease end date and who signs off on the move")}
+    ${area("objective", m.objective, "e.g. Agree this month's priority accounts and who owns each one")}
   </section>
   <section class="block"><h2>What we already know</h2>
-    ${area("background", m.background, "Estate, lease position, previous conversations, competitors involved")}
+    ${area("background", m.background, "Background, previous decisions, anything people should read beforehand")}
   </section>
   <section class="block"><h2>Questions to ask</h2>
     <div class="rows">${m.questions.map((q, i) => `<div class="r q">${li("questions", i, "text", q.text, "text", "Question")}${rm("questions", i)}</div>`).join("")}</div>
@@ -534,7 +533,7 @@ function renderFollow(m) {
     <div class="fields" style="margin-bottom:12px">
       <label class="f">Status<select class="in" data-f="status">${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${k === m.status ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     </div>
-    ${area("outcome", m.outcome, "What happened, in a sentence or two. Where does this leave the opportunity?")}
+    ${area("outcome", m.outcome, "What happened, in a sentence or two")}
   </section>
   <section class="block"><h2>Decisions</h2>
     ${area("decisions", m.decisions, "One per line")}
@@ -606,7 +605,7 @@ function renderActions() {
         <input type="checkbox" aria-label="Mark done" data-mid="${m.id}" data-list="actions" data-i="${i}" data-k="done">
         <div><div class="txt">${esc(a.text)}</div>
         <div class="meta">${a.owner ? esc(a.owner) : "No owner"}${a.due ? `, <span class="${a.due < t ? "overdue" : ""}">due ${fmtDate(a.due, { weekday: "short", day: "numeric", month: "short" })}</span>` : ""}.
-        From <button class="link" data-act="open" data-id="${m.id}" data-step="follow">${esc(m.company) || "No company"}${m.title ? ", " + esc(m.title) : ""}</button>, ${fmtDate(m.date, { day: "numeric", month: "short" })}</div></div>
+        From <button class="link" data-act="open" data-id="${m.id}" data-step="follow">${esc(nameOf(m))}</button>, ${fmtDate(m.date, { day: "numeric", month: "short" })}</div></div>
       </div>`).join("")}
     </div></div>`).join("");
 }
@@ -614,7 +613,7 @@ function actionsText() {
   const lines = ["Outstanding actions", ""];
   actionGroups(filteredOutstanding()).forEach(([, label, list]) => {
     lines.push(label);
-    list.forEach(({ m, a }) => lines.push(`- ${a.text}${a.owner ? ` (${a.owner}` : " ("}${a.due ? `${a.owner ? ", " : ""}due ${fmtDate(a.due, { day: "numeric", month: "short" })}` : a.owner ? "" : "no owner"}) [${m.company || "No company"}]`));
+    list.forEach(({ m, a }) => lines.push(`- ${a.text}${a.owner ? ` (${a.owner}` : " ("}${a.due ? `${a.owner ? ", " : ""}due ${fmtDate(a.due, { day: "numeric", month: "short" })}` : a.owner ? "" : "no owner"}) [${nameOf(m)}, ${fmtDate(m.date, { day: "numeric", month: "short" })}]`));
     lines.push("");
   });
   return lines.join("\n").trim();
@@ -662,7 +661,7 @@ document.addEventListener("input", e => {
   const val = el.type === "checkbox" ? el.checked : el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value;
   if (el.dataset.f) {
     m[el.dataset.f] = val;
-    if (["title", "company", "leaseEvent", "date", "time", "duration", "type", "location", "status"].includes(el.dataset.f)) { renderList(); updateHeader(); }
+    if (["date", "time", "duration", "type", "location", "status"].includes(el.dataset.f)) { renderList(); updateHeader(); }
     if (el.dataset.f === "duration") updateAgendaTotal();
   } else if (el.dataset.list) {
     const item = m[el.dataset.list][+el.dataset.i]; if (!item) return;
@@ -685,7 +684,7 @@ function updateAgendaTotal() {
 }
 
 function openMeeting(id, s) { flushAll(); view = "meetings"; currentId = id; step = s || "prep"; renderList(); renderMain(); window.scrollTo(0, 0); }
-function createMeeting(extra) { const m = blank(extra); meetings[m.id] = m; store.save(m); openMeeting(m.id, "prep"); setTimeout(() => { const f = document.querySelector('[data-f="company"]'); if (f && !m.company) f.focus(); }, 0); }
+function createMeeting(extra) { const m = blank(extra); meetings[m.id] = m; store.save(m); openMeeting(m.id, "prep"); setTimeout(() => { const f = document.querySelector('[data-f="type"]'); if (f && !m.type) f.focus(); }, 0); }
 
 function capture(kind) {
   const m = current(), el = $("cap"); if (!m || !el || !el.value.trim()) return;
@@ -701,7 +700,7 @@ function capture(kind) {
 }
 
 function recapText(m) {
-  const lines = [`Meeting recap: ${m.company || "Untitled"}${m.title ? ", " + m.title : ""}`, fmtDate(m.date), ""];
+  const lines = [`Meeting recap: ${nameOf(m)}`, fmtDate(m.date), ""];
   const people = m.attendees.filter(a => a.name).map(a => a.name + (a.role ? ` (${a.role})` : ""));
   if (people.length) lines.push("Attendees: " + people.join(", "), "");
   if (m.outcome.trim()) lines.push("Summary", m.outcome.trim(), "");
@@ -736,7 +735,7 @@ document.addEventListener("click", e => {
       renderList(); break;
     case "step": step = b.dataset.step; renderMain(); window.scrollTo(0, 0); break;
     case "add": {
-      const defs = { attendees: { name: "", role: "", side: "Client" }, questions: { text: "", asked: false }, agenda: { topic: "", mins: 10, owner: "", done: false }, actions: { text: "", owner: "", due: "", done: false } };
+      const defs = { attendees: { name: "", role: "" }, questions: { text: "", asked: false }, agenda: { topic: "", mins: 10, owner: "", done: false }, actions: { text: "", owner: "", due: "", done: false } };
       m[b.dataset.list].push({ ...defs[b.dataset.list] }); scheduleSave(m); renderMain();
       const rows = document.querySelectorAll(`[data-list="${b.dataset.list}"][data-i="${m[b.dataset.list].length - 1}"]`);
       const first = [...rows].find(r => r.type !== "checkbox"); if (first) first.focus();
@@ -768,15 +767,15 @@ document.addEventListener("click", e => {
     case "follow-on": {
       const open = openActions(m).map(a => `- ${a.text}${a.owner ? ` (${a.owner})` : ""}`);
       createMeeting({
-        company: m.company, leaseEvent: m.leaseEvent, type: m.type, title: m.title ? m.title + " follow-up" : "Follow-up",
+        type: m.type,
         date: m.nextDate || addDays(todayISO(), 14), time: m.time, duration: m.duration, location: m.location,
         attendees: m.attendees.map(a => ({ ...a })),
-        background: `Follows ${m.title || "meeting"} on ${fmtDate(m.date)}.${m.outcome ? "\n" + m.outcome : ""}${open.length ? "\n\nOpen actions:\n" + open.join("\n") : ""}`
+        background: `Follows ${nameOf(m)} on ${fmtDate(m.date)}.${m.outcome ? "\n" + m.outcome : ""}${open.length ? "\n\nOpen actions:\n" + open.join("\n") : ""}`
       });
       toast("Follow-up meeting created"); break;
     }
     case "delete":
-      if (!confirm(`Delete the ${m.company || "untitled"} meeting? This can't be undone.`)) return;
+      if (!confirm(`Delete ${nameOf(m)} on ${fmtDate(m.date)}? This can't be undone.`)) return;
       clearTimeout(pending[m.id]); delete pending[m.id];
       delete meetings[m.id]; store.remove(m.id); currentId = null; renderList(); renderMain(); toast("Meeting deleted"); break;
   }
