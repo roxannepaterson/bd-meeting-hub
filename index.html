@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BD Meeting Hub | Anchorpoint</title>
+<!-- version: types-v2 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -247,7 +248,7 @@ const FIREBASE_CONFIG = {
 const DB_PATH = "bdMeetingHub/meetings";
 const LS_KEY = "anchorpoint-bd-meeting-hub";
 const CLIENT = Math.random().toString(36).slice(2, 10);
-const TYPES = ["Discovery", "Follow-up", "Site visit", "Proposal", "Pitch", "Workshop", "Networking", "Other"];
+const TYPES = ["BD Review - Alison", "BD Review - Lyndon", "BD Catch-Up", "Other - BD"];
 const STATUSES = { planned: "Planned", held: "Held", rescheduled: "Rescheduled", cancelled: "Cancelled" };
 const SEG_COLOURS = ["#715091", "#a7c5ee", "#ff9e6d", "#923b7f", "#573d82", "#eb6954"];
 
@@ -269,7 +270,7 @@ function setSync(text, local) { const s = $("sync"); s.textContent = text; s.cla
 function blank(extra) {
   return Object.assign({
     id: uid(), company: "", leaseEvent: "", title: "", date: todayISO(), time: "10:00", duration: 60,
-    location: "", type: "Discovery", status: "planned",
+    location: "", type: "BD Catch-Up", status: "planned",
     attendees: [], objective: "", background: "", questions: [], agenda: [],
     notes: "", outcome: "", decisions: "", actions: [], nextDate: "",
     createdAt: Date.now(), updatedAt: Date.now(), updatedBy: CLIENT
@@ -454,8 +455,8 @@ function renderPrep(m) {
   <section class="block"><h2>Details</h2>
     <div class="fields">
       <label class="f">Company${input("company", m.company, "text", "e.g. Switalskis Solicitors")}</label>
-      <label class="f">Meeting title${input("title", m.title, "text", "e.g. Discovery call")}</label>
-      <label class="f">Type<select class="in" data-f="type">${TYPES.map(t => `<option ${t === m.type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="f">Meeting title${input("title", m.title, "text", "e.g. Weekly pipeline review")}</label>
+      <label class="f">Type<select class="in" data-f="type">${(TYPES.includes(m.type) || !m.type ? TYPES : [m.type, ...TYPES]).map(t => `<option ${t === m.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
       <label class="f">Date${input("date", m.date, "date")}</label>
       <label class="f">Start time${input("time", m.time, "time")}</label>
       <label class="f">Length (minutes)${input("duration", m.duration, "number")}</label>
@@ -767,7 +768,7 @@ document.addEventListener("click", e => {
     case "follow-on": {
       const open = openActions(m).map(a => `- ${a.text}${a.owner ? ` (${a.owner})` : ""}`);
       createMeeting({
-        company: m.company, leaseEvent: m.leaseEvent, type: "Follow-up", title: m.title ? m.title + " follow-up" : "Follow-up",
+        company: m.company, leaseEvent: m.leaseEvent, type: m.type, title: m.title ? m.title + " follow-up" : "Follow-up",
         date: m.nextDate || addDays(todayISO(), 14), time: m.time, duration: m.duration, location: m.location,
         attendees: m.attendees.map(a => ({ ...a })),
         background: `Follows ${m.title || "meeting"} on ${fmtDate(m.date)}.${m.outcome ? "\n" + m.outcome : ""}${open.length ? "\n\nOpen actions:\n" + open.join("\n") : ""}`
